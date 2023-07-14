@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bomberman Game</title>
+    <style>
+        #game-board {
+            width: 100%;
+            height: 100%;
+            border: 1px solid black;
+            position: relative;
+        }
+
+        .tile {
+            width: 40px;
+            height: 40px;
+            position: absolute;
+        }
+
+        .player {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background-color: purple;
+            position: absolute;
+            top: 5px;
+            left: 5px;
+        }
+
+        .bomb {
+            width: 40px;
+            height: 40px;
+            background-color: red;
+        }
+
+        .destructible {
+            background-color: gray;
+        }
+
+        .indestructible {
+            background-color: #333;
+        }
+
+        .explosion {
+            background-color: orange;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-board"></div>
+
+    <script>
+        const BOARD_WIDTH = 20;
+        const BOARD_HEIGHT = 15;
+        const TILE_SIZE = 40;
+        const DESTRUCTIBLE_WALL_DENSITY = 0.5;
+
+        const board = [];
+        let playerPosition = 0;
+        let bombs = [];
+
+        const gameBoard = document.getElementById('game-board');
+
+        gameBoard.style.width = `${BOARD_WIDTH * TILE_SIZE}px`;
+        gameBoard.style.height = `${BOARD_HEIGHT * TILE_SIZE}px`;
+
+        for (let row = 0; row < BOARD_HEIGHT; row++) {
+            for (let col = 0; col < BOARD_WIDTH; col++) {
+                const tile = document.createElement('div');
+                tile.classList.add('tile');
+                tile.style.top = `${row * TILE_SIZE}px`;
+                tile.style.left = `${col * TILE_SIZE}px`;
+
+                const isEdgeTile = row === 0 || row === BOARD_HEIGHT - 1 || col === 0 || col === BOARD_WIDTH - 1;
+
+                if (isEdgeTile || (Math.random() < DESTRUCTIBLE_WALL_DENSITY)) {
+                    tile.classList.add('destructible');
+                } else {
+                    tile.classList.add('indestructible');
+                }
+
+                gameBoard.appendChild(tile);
+                board.push(tile);
+            }
+        }
+
+        playerPosition = getTileIndex(Math.floor(BOARD_WIDTH / 2), Math.floor(BOARD_HEIGHT / 2));
+        board[playerPosition].appendChild(createPlayer());
+
+        document.addEventListener('keydown', (event) => {
+            const key = event.key;
+
+            switch (key) {
+                case 'ArrowUp':
+                    movePlayer(0, -1);
+                    break;
+                case 'ArrowDown':
+                    movePlayer(0, 1);
+                    break;
+                case 'ArrowLeft':
+                    movePlayer(-1, 0);
+                    break;
+                case 'ArrowRight':
+                    movePlayer(1, 0);
+                    break;
+                case ' ':
+                    placeBomb();
+                    break;
+            }
+        });
+
+        
+        function movePlayer(dx, dy) {
+            const row = getRowFromTileIndex(playerPosition);
+            const col = getColFromTileIndex(playerPosition);
+
+            const newRow = row + dy;
+            const newCol = col + dx;
+
+            if (isValidMove(newRow, newCol)) {
+                const newTileIndex = getTileIndex(newCol, newRow);
+                const player = document.querySelector('.player');
+
+                board[playerPosition].removeChild(player);
+
+                playerPosition = newTileIndex;
+                board[playerPosition].appendChild(createPlayer());
+            }
+        }
+
+        function isValidMove(row, col) {
+            const tileIndex = getTileIndex(col, row);
+            const tile = board[tileIndex];
+
+            return tile && !tile.classList.contains('indestructible');
+        }
+
+        
+        function createPlayer() {
+            const player = document.createElement('div');
+            player.classList.add('player');
+            return player;
+        }
+
+        
+        function placeBomb() {
+            const bomb = document.createElement('div');
+            bomb.classList.add('bomb');
+
+            const playerTile = board[playerPosition];
+            playerTile.appendChild(bomb);
+
+            bombs.push(playerPosition);
+
+            setTimeout(() => {
+                explodeBombs();
+            }, 2000); 
+        }
+
+        function explodeBombs() {
+            bombs.forEach((bombPosition) => {
+                const bombTile = board[bombPosition];
+                bombTile.removeChild(bombTile.firstChild);
+                bombTile.classList.add('explosion');
+
+                const row = getRowFromTileIndex(bombPosition);
+                const col = getColFromTileIndex(bombPosition);
+
+                setTimeout(() => {
+                    clearExplosion(row, col);
+                    destroyFeatures(row, col);
+                }, 1000); // Explosion duration (1 second)
+            });
+
+            bombs = [];
+        }
+
+        // Clear the explosion effect
+        function clearExplosion(row, col) {
+            const tileIndex = getTileIndex(col, row);
+            const tile = board[tileIndex];
+            tile.classList.remove('explosion');
+        }
+
+        function destroyFeatures(row, col) {
+            const directions = [
+                { dx: 0, dy: -1 },
+                { dx: 0, dy: 1 }, 
+                { dx: -1, dy: 0 },
+                { dx: 1, dy: 0 } 
+            ];
+
+            directions.forEach((direction) => {
+                for (let i = 1; i <= 3; i++) {
+                    const newRow = row + direction.dy * i;
+                    const newCol = col + direction.dx * i;
+                    const tileIndex = getTileIndex(newCol, newRow);
+
+                    if (isValidPosition(newRow, newCol)) {
+                        const tile = board[tileIndex];
+
+                        if (tile.classList.contains('destructible')) {
+                            tile.classList.remove('destructible');
+                        } else if (tile.classList.contains('indestructible')) {
+                            break;
+                        }
+
+                        tile.classList.add('explosion');
+
+                        setTimeout(() => {
+                            tile.classList.remove('explosion');
+                        }, 1000); // Explosion duration (1 second)
+                    } else {
+                        break;
+                    }
+                }
+            });
+        }
+
+        function getTileIndex(col, row) {
+            return row * BOARD_WIDTH + col;
+        }
+
+        function getRowFromTileIndex(tileIndex) {
+            return Math.floor(tileIndex / BOARD_WIDTH);
+        }
+
+        function getColFromTileIndex(tileIndex) {
+            return tileIndex % BOARD_WIDTH;
+        }
+
+        function isValidPosition(row, col) {
+            return row >= 0 && row < BOARD_HEIGHT && col >= 0 && col < BOARD_WIDTH;
+        }
+    </script>
+</body>
+</html>
